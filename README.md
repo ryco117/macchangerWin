@@ -8,7 +8,7 @@ arguments. It needs to be run with admin privileges in order to work because it 
 and take down the network interface temporarily (so that a restart isn't needed for the spoof to take effect).
 
 Example Args
-============
+------------
 
 macchangerWin			;This will assign a random MAC address to the specified NIC
 
