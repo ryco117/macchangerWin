@@ -65,7 +65,7 @@ int main(int argc, char** argv)
 			NAName += c;
 	}
 	if(NAName.size() == 0)
-		NAName = "Local Area Connection";
+		NAName = "Wireless Network Connection";
 	
 	err = system(std::string(std::string("netsh interface set interface \"") + NAName + std::string("\" DISABLED")).c_str());
 	if(err != 0)
@@ -99,16 +99,26 @@ int main(int argc, char** argv)
 
 std::string RandMac()
 {
+	char WA[4] = {'2', '6', 'A', 'E'};
 	srand(time(NULL));
 	char AddrBuf[3];
 	std::string NewMac = "";
-	for(int i = 0; i < 6; i++)
+	
+	//Because of fucking wireless adapters...
+	unsigned int MacP = rand() % 16;
+	sprintf(AddrBuf, "%X:", MacP);
+	NewMac += AddrBuf[0];
+	MacP = rand() % 4;
+	NewMac += WA[MacP];
+	
+	for(int i = 0; i < 5; i++)
 	{
-		unsigned int MacP = rand() % 255;
+		MacP = rand() % 256;
 		sprintf(AddrBuf, "%02X:", MacP);
 		NewMac += AddrBuf[0];
 		NewMac += AddrBuf[1];
 	}
+	printf("New MAC Address is: %s\n", NewMac.c_str());
 	return NewMac;
 }
 
