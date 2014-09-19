@@ -9,11 +9,9 @@ and take down the network interface temporarily (so that a restart isn't needed 
 
 Example Args
 ------------
-
+```
 macchangerWin			;This will assign a random MAC address to the specified NIC
-
 macchangerWin -h		;This displays arg help menu
-
 macchangerWin -r		;This resets the MAC back to the default (stops spoofing)
-
 macchangerWin -m A1B2C3D4E5F6	;This spoofs the MAC address to A1B2C3D4E5F6. Note the address needs to be formatted in this way with caps and no colons (despite the colons being more common)
+```
