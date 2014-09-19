@@ -185,6 +185,8 @@ std::string Query()
 			else
 				NICKeyName += c;
 		}
+		if(NICKeyName.size() == 0)
+			NICKeyName = "0007";
 		
 		bool BadName = true;
 		for(int i = 0; i < SubKeysN; i++)
