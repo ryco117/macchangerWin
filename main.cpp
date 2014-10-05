@@ -18,7 +18,7 @@ int main(int argc, char** argv)
 		if(arg == "-h" || arg == "--help")
 		{
 			printf("-h   --help\tDisplay this help dialogue\n\
--m   --mac\tSpecify MAC address instead of a random one, AABBCCDDEEFF format\n\
+-m   --mac\tSpecify MAC address instead of a random one\n\
 -r   --reset\tReset to the default MAC address\n");
 			return -1;
 		}
@@ -124,13 +124,23 @@ std::string RandMac()
 
 bool IsMAC(std::string& mac)
 {
-	if(mac.size() != 12)
-		return false;
-	for(int i = 0; i < 12; i++)
+	std::string testMac;
+	for(int i = 0; i < mac.size(); i++)
 	{
+		//if	  Is not a decimal number			and		  Is not an acceptable upper case letter
 		if(!((int)mac[i] >= 48 && (int)mac[i] < 58) && !((int)mac[i] >= 65 && (int)mac[i] < 71))
-			return false;
+		{
+			if(mac[i] == ":")
+				continue;
+			else if((int)mac[i] >= 97 && (int)mac[i] < 103)
+				testMac.push_back(mac[i] - (char)32);
+			else
+				return false;
+		}
+		else
+			testMac.push_back(mac[i]);
 	}
+	mac = testMac;
 	return true;
 }
 
