@@ -122,7 +122,7 @@ std::string RandMac()
 	return NewMac;
 }
 
-bool IsMAC(std::string mac)
+bool IsMAC(std::string& mac)
 {
 	if(mac.size() != 12)
 		return false;

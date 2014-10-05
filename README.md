@@ -2,10 +2,10 @@ macchangerWin
 =============
 
 Is a fully featured MAC address spoofer for windows! It is an easy to use command line tool that requires 
-almost no prior knowledge about the newtork cards you wish to spoof the MAC address of. It will generate a random 
+almost no prior knowledge about the network cards you wish to spoof the MAC address of. It will generate a random 
 MAC address by default, but you can specify an address to spoof of your own, or reset back to the default using the command line 
-argument "-r". It needs to be run with admin privileges in order to work because it needs to edit the registry (for spoofing the address) 
-and to take down the network interface temporarily (so that a restart isn't needed for the spoof to take effect).
+arguments "-m" and "-r". It needs to be run with admin privileges in order to work because it needs to edit the registry (for
+spoofing the address) and to take down the network interface temporarily (so that a restart isn't needed for the spoof to take effect).
 
 Example Args
 ------------
