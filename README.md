@@ -13,5 +13,6 @@ Example Args
 macchangerWin			        ;This will assign a random MAC address to the specified NIC
 macchangerWin -h		        ;This displays arg help menu
 macchangerWin -r		        ;This resets the MAC back to the default (stops spoofing)
-macchangerWin -m A1B2C3D4E5F6	;This spoofs the MAC address to A1B2C3D4E5F6
+macchangerWin -m A1B2C3D4E5F6	;This spoofs the MAC address to A1B2C3D4E5F6.
+								;A1:B2:C3:D4:E5:F6 a1b2c3d4e5f6 a1:b2:c3:d4:e5:f6 are all acceptable formats as well
 ```
