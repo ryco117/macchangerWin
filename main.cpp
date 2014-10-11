@@ -6,7 +6,7 @@
 
 std::string Query();
 std::string RandMac();
-bool IsMAC(std::string mac);
+bool IsMAC(std::string& mac);
 
 int main(int argc, char** argv)
 {
@@ -130,7 +130,7 @@ bool IsMAC(std::string& mac)
 		//if	  Is not a decimal number			and		  Is not an acceptable upper case letter
 		if(!((int)mac[i] >= 48 && (int)mac[i] < 58) && !((int)mac[i] >= 65 && (int)mac[i] < 71))
 		{
-			if(mac[i] == ":")
+			if(mac[i] == ':')
 				continue;
 			else if((int)mac[i] >= 97 && (int)mac[i] < 103)
 				testMac.push_back(mac[i] - (char)32);
