@@ -3,13 +3,25 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string>
+#include <fstream>
 
-std::string Query(std::string DevDesc)
+typedef struct _TOKEN_ELEVATION {
+  DWORD TokenIsElevated;
+} TOKEN_ELEVATION, *PTOKEN_ELEVATION;
+
+std::string Query(std::string DevDesc);
 std::string RandMac();
 bool IsMAC(std::string& mac);
+bool IsElevated();
 
 int main(int argc, char** argv)
 {
+	if(!IsElevated())
+	{
+		printf("Not run as admin, exiting\n");
+		return -9;
+	}
+
 	std::string NewMac = "";
 	bool reset = false;
 	
@@ -53,6 +65,9 @@ int main(int argc, char** argv)
 	}
 	else
 		NewMac = RandMac();
+	
+	if(!reset)
+		printf("MAC Address will be set to %s\n", NewMac.c_str());
 
 	//What adapter/connection does the user want to work with? (Default is "Wireless Network Connection")
 	printf("Network Adapter Name <Eg. \"Wireless Network Connection\">: ");
@@ -91,6 +106,7 @@ int main(int argc, char** argv)
 		if(UsedAdptr == std::string::npos)
 		{
 			printf("Could not find adapter %s, exiting\n", NAName.c_str());
+			AdaptersList.close();
 			return -5;
 		}
 		
@@ -98,6 +114,7 @@ int main(int argc, char** argv)
 		UsedAdptr += 36;
 		std::string DeviceDesc = Contents.substr(UsedAdptr, Contents.find("\n", UsedAdptr)-UsedAdptr);
 		KeyLoc = Query(DeviceDesc);
+		AdaptersList.close();
 	}
 	else
 	{
@@ -151,7 +168,7 @@ std::string RandMac()
 		NewMac += AddrBuf[0];
 		NewMac += AddrBuf[1];
 	}
-	printf("New MAC Address is: %s\n", NewMac.c_str());
+	
 	return NewMac;
 }
 
@@ -219,4 +236,24 @@ std::string Query(std::string DevDesc)
 		}
 	}
 	return RtrnStr;
+}
+
+bool IsElevated()
+{
+	BOOL fRet = FALSE;
+	HANDLE hToken = NULL;
+	if(OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken))
+	{
+		TOKEN_ELEVATION Elevation;
+		DWORD cbSize = sizeof(TOKEN_ELEVATION);
+		if(GetTokenInformation(hToken, (TOKEN_INFORMATION_CLASS)20, &Elevation, sizeof(Elevation), &cbSize))
+		{
+			fRet = Elevation.TokenIsElevated;
+		}
+	}
+	if(hToken)
+	{
+		CloseHandle(hToken);
+	}
+	return (bool)fRet;
 }
