@@ -4,7 +4,7 @@
 #include <time.h>
 #include <string>
 
-std::string Query();
+std::string Query(std::string DevDesc)
 std::string RandMac();
 bool IsMAC(std::string& mac);
 
@@ -12,6 +12,8 @@ int main(int argc, char** argv)
 {
 	std::string NewMac = "";
 	bool reset = false;
+	
+	//Figure out what they want done through args...
 	if(argc == 2 || argc == 3)
 	{
 		std::string arg = std::string(argv[1]);
@@ -39,21 +41,21 @@ int main(int argc, char** argv)
 			}
 			else
 			{
-				printf("Didn't understand the arguments, exiting\n");
-				return -2;
+				printf("No MAC address given, exiting\n");
+				return -3;
 			}
 		}
 		else 
 		{
 			printf("Didn't understand the arguments, exiting\n");
-			return -2;
+			return -4;
 		}
 	}
 	else
 		NewMac = RandMac();
 
-	int err = 0;
-	printf("Enter Network Adapter Name<Local Area Connection>: ");
+	//What adapter/connection does the user want to work with? (Default is "Wireless Network Connection")
+	printf("Network Adapter Name <Eg. \"Wireless Network Connection\">: ");
 	char c;
 	std::string NAName = "";
 	while(true)
@@ -67,33 +69,64 @@ int main(int argc, char** argv)
 	if(NAName.size() == 0)
 		NAName = "Wireless Network Connection";
 	
-	err = system(std::string(std::string("netsh interface set interface \"") + NAName + std::string("\" DISABLED")).c_str());
-	if(err != 0)
+	//Get list of all adapters
+	system("ipconfig/all > adapters.list");
+	
+	std::string KeyLoc;
+	std::fstream AdaptersList;
+	
+	//Scan list to obtain device description that matches given connection name
+	AdaptersList.open("adapters.list", std::fstream::in);
+	if(AdaptersList.is_open())
 	{
-		scanf("%c", &c);
-		return -3;
+		AdaptersList.seekg(0, AdaptersList.end);
+		unsigned int FileSize = AdaptersList.tellg();
+		AdaptersList.seekg(0, AdaptersList.beg);
+		
+		char* FileBuf = new char[FileSize];
+		AdaptersList.read(FileBuf, FileSize);
+		std::string Contents = FileBuf;
+		
+		size_t UsedAdptr = Contents.find(NAName + ":\n");
+		if(UsedAdptr == std::string::npos)
+		{
+			printf("Could not find adapter %s, exiting\n", NAName.c_str());
+			return -5;
+		}
+		
+		UsedAdptr = Contents.find("Description", UsedAdptr);
+		UsedAdptr += 36;
+		std::string DeviceDesc = Contents.substr(UsedAdptr, Contents.find("\n", UsedAdptr)-UsedAdptr);
+		KeyLoc = Query(DeviceDesc);
+	}
+	else
+	{
+		printf("Could not open adapters.list 0.o\n");
+		return -6;
 	}
 	
-	std::string KeyLoc = Query();
-	if(KeyLoc == "***DUN_GOOFED***")
+	if(KeyLoc.empty())
 	{
-		printf("Bad Entry, exiting\n");
-		system(std::string(std::string("netsh interface set interface \"") + NAName + std::string("\" ENABLED")).c_str());
-		scanf("%c", &c);
-		return -4;
+		printf("Could not find matching description in registry, exiting\n");
+		return -7;
+	}
+	
+	if(system(std::string(std::string("netsh interface set interface \"") + NAName + std::string("\" DISABLED")).c_str()) != 0)
+	{
+		return -8;
 	}
 	
 	HKEY NICKey;
 	RegOpenKeyEx(HKEY_LOCAL_MACHINE, KeyLoc.c_str(), 0, KEY_WRITE, &NICKey);
 	if(reset)
-		RegSetValueEx(NICKey, "NetworkAddress", 0, REG_SZ, (const BYTE*)std::string("\0").c_str(), 1);
+		RegSetValueEx(NICKey, "NetworkAddress", 0, REG_SZ, (const BYTE*)"\0", 1);
 	else
-		RegSetValueEx(NICKey, "NetworkAddress", 0, REG_SZ, (const BYTE*)NewMac.c_str(), 13);
+		RegSetValueEx(NICKey, "NetworkAddress", 0, REG_SZ, (const BYTE*)NewMac.c_str(), NewMac.size());
 	
 	RegCloseKey(NICKey);
 	system(std::string(std::string("netsh interface set interface \"") + NAName + std::string("\" ENABLED")).c_str());
-	printf("Finished\n");
-	scanf("%c", &c);
+	
+	remove("adapters.list");
 	return 0;
 }
 
@@ -104,7 +137,7 @@ std::string RandMac()
 	char AddrBuf[3];
 	std::string NewMac = "";
 	
-	//Because of fucking wireless adapters...
+	//Because of fucking wireless adapters, MAC needs this dumb format in Windows
 	unsigned int MacP = rand() % 16;
 	sprintf(AddrBuf, "%X:", MacP);
 	NewMac += AddrBuf[0];
@@ -144,7 +177,7 @@ bool IsMAC(std::string& mac)
 	return true;
 }
 
-std::string Query()
+std::string Query(std::string DevDesc)
 {
 	std::string RtrnStr;
 
@@ -171,47 +204,19 @@ std::string Query()
 		HKEY SubKey;
 		char DescBuf[1024];
 		long unsigned int DescSize;
-		printf("Key Name        Driver Description\n-----------------------------------\n");
-		for(int i = 0; i < SubKeysN; i++)
+		for(int i = 0; i < SubKeysN && RtrnStr.empty(); i++)
 		{
 			DescSize = 1024*sizeof(TCHAR);
 			memset(DescBuf, 0, DescSize);
 			RegOpenKeyEx(HKEY_LOCAL_MACHINE, std::string(std::string("SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\") + KeyNames[i]).c_str(), 0, KEY_READ, &SubKey);
 			long unsigned int err = RegQueryValueEx(SubKey, "DriverDesc\0", 0, 0, (unsigned char*)DescBuf, &DescSize);
-			if(err == 0)
+			
+			if(err == 0 && DevDesc == std::string(DescBuf))
 			{
-				printf("%s\t\t%s\n", KeyNames[i].c_str(), std::string(DescBuf).c_str());
+				RtrnStr = std::string("SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\") + KeyNames[i];
 			}
 			RegCloseKey(SubKey);
 		}
-		printf("\nEnter The Key Name Of The NIC To MAC Spoof: ");
-		std::string NICKeyName;
-		char c;
-		while(true)
-		{
-			scanf("%c", &c);
-			if(c == '\n')
-				break;
-			else
-				NICKeyName += c;
-		}
-		if(NICKeyName.size() == 0)
-			NICKeyName = "0007";
-		
-		bool BadName = true;
-		for(int i = 0; i < SubKeysN; i++)
-		{
-			if(NICKeyName == KeyNames[i])
-			{
-				BadName = false;
-				break;
-			}
-		}
-		if(BadName)
-			RtrnStr = "***DUN_GOOFED***";
-		else
-			RtrnStr = std::string("SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\") + NICKeyName;
 	}
-	
 	return RtrnStr;
 }
