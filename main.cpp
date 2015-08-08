@@ -3,13 +3,21 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string>
+#include <fstream>
 
-std::string Query(std::string DevDesc)
+std::string Query(std::string DevDesc);
 std::string RandMac();
 bool IsMAC(std::string& mac);
+bool IsElevated();
 
 int main(int argc, char** argv)
 {
+	if(!IsElevated())
+	{
+		printf("Not run as admin, exiting\n");
+		return -9;
+	}
+
 	std::string NewMac = "";
 	bool reset = false;
 	
@@ -53,9 +61,12 @@ int main(int argc, char** argv)
 	}
 	else
 		NewMac = RandMac();
+	
+	if(!reset)
+		printf("MAC Address will be set to %s\n", NewMac.c_str());
 
 	//What adapter/connection does the user want to work with? (Default is "Wireless Network Connection")
-	printf("Network Adapter Name <Eg. \"Wireless Network Connection\">: ");
+	printf("Network Adapter Name <Eg. \"Wireless LAN adapter Wi-Fi\">: ");
 	char c;
 	std::string NAName = "";
 	while(true)
@@ -67,7 +78,7 @@ int main(int argc, char** argv)
 			NAName += c;
 	}
 	if(NAName.size() == 0)
-		NAName = "Wireless Network Connection";
+		NAName = "Wireless LAN adapter Wi-Fi";
 	
 	//Get list of all adapters
 	system("ipconfig/all > adapters.list");
@@ -91,13 +102,16 @@ int main(int argc, char** argv)
 		if(UsedAdptr == std::string::npos)
 		{
 			printf("Could not find adapter %s, exiting\n", NAName.c_str());
+			AdaptersList.close();
 			return -5;
 		}
 		
 		UsedAdptr = Contents.find("Description", UsedAdptr);
 		UsedAdptr += 36;
 		std::string DeviceDesc = Contents.substr(UsedAdptr, Contents.find("\n", UsedAdptr)-UsedAdptr);
+		printf("Matching description: %s\n", DeviceDesc.c_str());
 		KeyLoc = Query(DeviceDesc);
+		AdaptersList.close();
 	}
 	else
 	{
@@ -110,6 +124,20 @@ int main(int argc, char** argv)
 		printf("Could not find matching description in registry, exiting\n");
 		return -7;
 	}
+	
+	system("netsh interface show interface");
+	printf("Enter the interface name to restart <Eg. \"Wi-Fi\">: ");
+	NAName.clear();
+	while(true)
+	{
+		scanf("%c", &c);
+		if(c == '\n')
+			break;
+		else
+			NAName += c;
+	}
+	if(NAName.size() == 0)
+		NAName = "Wi-Fi";
 	
 	if(system(std::string(std::string("netsh interface set interface \"") + NAName + std::string("\" DISABLED")).c_str()) != 0)
 	{
@@ -151,7 +179,7 @@ std::string RandMac()
 		NewMac += AddrBuf[0];
 		NewMac += AddrBuf[1];
 	}
-	printf("New MAC Address is: %s\n", NewMac.c_str());
+	
 	return NewMac;
 }
 
@@ -196,6 +224,12 @@ std::string Query(std::string DevDesc)
 			memset(NameBuf, 0, 255*sizeof(TCHAR));
 			if(RegEnumKeyEx(MKey, i, NameBuf, &NameLen, 0, 0, 0, 0) == 0)
 			{
+				if(memcmp(NameBuf, "Configuration", 13) == 0 || memcmp(NameBuf, "Properties", 10) == 0)
+				{
+					KeyNames[i].clear();
+					continue;
+				}
+				
 				for(int j = 0; j < NameLen; j++)
 					KeyNames[i] += NameBuf[j];
 			}
@@ -206,17 +240,44 @@ std::string Query(std::string DevDesc)
 		long unsigned int DescSize;
 		for(int i = 0; i < SubKeysN && RtrnStr.empty(); i++)
 		{
-			DescSize = 1024*sizeof(TCHAR);
+			if(KeyNames[i].empty())
+				continue;
+			
+			DescSize = 1024;
 			memset(DescBuf, 0, DescSize);
 			RegOpenKeyEx(HKEY_LOCAL_MACHINE, std::string(std::string("SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\") + KeyNames[i]).c_str(), 0, KEY_READ, &SubKey);
 			long unsigned int err = RegQueryValueEx(SubKey, "DriverDesc\0", 0, 0, (unsigned char*)DescBuf, &DescSize);
-			
-			if(err == 0 && DevDesc == std::string(DescBuf))
+			if(err == ERROR_SUCCESS && std::string(DescBuf).find(DevDesc) != std::string::npos)
 			{
 				RtrnStr = std::string("SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\") + KeyNames[i];
+			}
+			else if(err != ERROR_SUCCESS)
+			{
+				printf("RegQueryValueEx failed (%d)\n", err);
+				printf("%s\n\n", std::string(std::string("SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}\\") + KeyNames[i]).c_str());
 			}
 			RegCloseKey(SubKey);
 		}
 	}
 	return RtrnStr;
+}
+
+bool IsElevated()
+{
+	BOOL fRet = FALSE;
+	HANDLE hToken = NULL;
+	if(OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken))
+	{
+		TOKEN_ELEVATION Elevation;
+		DWORD cbSize = sizeof(TOKEN_ELEVATION);
+		if(GetTokenInformation(hToken, (TOKEN_INFORMATION_CLASS)20, &Elevation, sizeof(Elevation), &cbSize))
+		{
+			fRet = Elevation.TokenIsElevated;
+		}
+	}
+	if(hToken)
+	{
+		CloseHandle(hToken);
+	}
+	return (bool)fRet;
 }
