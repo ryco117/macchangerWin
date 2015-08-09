@@ -5,6 +5,10 @@
 #include <string>
 #include <fstream>
 
+/*typedef struct _TOKEN_ELEVATION {
+  DWORD TokenIsElevated;
+} TOKEN_ELEVATION, *PTOKEN_ELEVATION;*/
+
 std::string Query(std::string DevDesc);
 std::string RandMac();
 bool IsMAC(std::string& mac);
@@ -19,39 +23,45 @@ int main(int argc, char** argv)
 	}
 
 	std::string NewMac = "";
+	std::string NAName = "";
 	bool reset = false;
+	bool oldStyle = false;
 	
 	//Figure out what they want done through args...
-	if(argc == 2 || argc == 3)
+	for(unsigned int i = 1; i < argc; i++)
 	{
-		std::string arg = std::string(argv[1]);
+		std::string arg = std::string(argv[i]);
 		if(arg == "-h" || arg == "--help")
 		{
-			printf("-h   --help\tDisplay this help dialogue\n\
--m   --mac\tSpecify MAC address instead of a random one\n\
--r   --reset\tReset to the default MAC address\n");
+			printf("-h    --help\tDisplay this help dialogue\n\
+-m    --mac\tSpecify MAC address instead of a random one in next argument\n\
+-r    --reset\tReset to the default MAC address\n\
+-o    --older-OS\tIf OS is older than Windows 10, choose this\n\
+-d    --device\tSpecify the interface name of the device that will be MAC spoofed/reset\n");
 			return -1;
 		}
 		else if(arg == "-r" || arg == "--reset")
 		{
 			reset = true;
 		}
-		else if(arg == "-m" || arg == "--mac")
+		else if((arg == "-m" || arg == "--mac") && i+1 < argc)
 		{
-			if(argc == 3)
+			NewMac = std::string(argv[i+1]);
+			if(!IsMAC(NewMac))
 			{
-				NewMac = std::string(argv[2]);
-				if(!IsMAC(NewMac))
-				{
-					printf("Not a proper MAC address, exiting\n");
-					return -2;
-				}
+				printf("Not a proper MAC address, exiting\n");
+				return -2;
 			}
-			else
-			{
-				printf("No MAC address given, exiting\n");
-				return -3;
-			}
+			i++;
+		}
+		else if((arg == "-d" || arg == "--device") && i+1 < argc)
+		{
+			NAName = std::string(argv[i+1]);
+			i++;
+		}
+		else if(arg == "-o" || arg == "--older-OS")
+		{
+			oldStyle = true;
 		}
 		else 
 		{
@@ -59,26 +69,28 @@ int main(int argc, char** argv)
 			return -4;
 		}
 	}
-	else
+	if(NewMac.empty())
 		NewMac = RandMac();
 	
 	if(!reset)
 		printf("MAC Address will be set to %s\n", NewMac.c_str());
 
-	//What adapter/connection does the user want to work with? (Default is "Wireless Network Connection")
-	printf("Network Adapter Name <Eg. \"Wireless LAN adapter Wi-Fi\">: ");
-	char c;
-	std::string NAName = "";
-	while(true)
+	if(NAName.empty())		//Didn't set the network adapter name through an arg
 	{
-		scanf("%c", &c);
-		if(c == '\n')
-			break;
-		else
-			NAName += c;
+		//What adapter/connection does the user want to work with? (Default is "Wireless Network Connection")
+		printf("Network Adapter Name <Eg. \"Wireless LAN adapter Wi-Fi\">: ");
+		char c;
+		while(true)
+		{
+			scanf("%c", &c);
+			if(c == '\n')
+				break;
+			else
+				NAName += c;
+		}
+		if(NAName.size() == 0)
+			NAName = "Wireless LAN adapter Wi-Fi";
 	}
-	if(NAName.size() == 0)
-		NAName = "Wireless LAN adapter Wi-Fi";
 	
 	//Get list of all adapters
 	system("ipconfig/all > adapters.list");
@@ -98,12 +110,30 @@ int main(int argc, char** argv)
 		AdaptersList.read(FileBuf, FileSize);
 		std::string Contents = FileBuf;
 		
-		size_t UsedAdptr = Contents.find(NAName + ":\n");
-		if(UsedAdptr == std::string::npos)
+		size_t UsedAdptr;
+		if(oldStyle)
 		{
-			printf("Could not find adapter %s, exiting\n", NAName.c_str());
-			AdaptersList.close();
-			return -5;
+			UsedAdptr = Contents.find(NAName + ":\n");
+			if(UsedAdptr == std::string::npos)
+			{
+				printf("Could not find adapter %s, exiting\n", NAName.c_str());
+				AdaptersList.close();
+				return -5;
+			}
+		}
+		else
+		{
+			UsedAdptr = Contents.find("Wireless LAN adapter " + NAName + ":\n");
+			if(UsedAdptr == std::string::npos)
+			{
+				UsedAdptr = Contents.find("Ethernet adapter " + NAName + ":\n");
+				if(UsedAdptr == std::string::npos)
+				{
+					printf("Could not find adapter %s, exiting\n", NAName.c_str());
+					AdaptersList.close();
+					return -6;
+				}
+			}
 		}
 		
 		UsedAdptr = Contents.find("Description", UsedAdptr);
@@ -116,32 +146,18 @@ int main(int argc, char** argv)
 	else
 	{
 		printf("Could not open adapters.list 0.o\n");
-		return -6;
+		return -7;
 	}
 	
 	if(KeyLoc.empty())
 	{
 		printf("Could not find matching description in registry, exiting\n");
-		return -7;
+		return -8;
 	}
-	
-	system("netsh interface show interface");
-	printf("Enter the interface name to restart <Eg. \"Wi-Fi\">: ");
-	NAName.clear();
-	while(true)
-	{
-		scanf("%c", &c);
-		if(c == '\n')
-			break;
-		else
-			NAName += c;
-	}
-	if(NAName.size() == 0)
-		NAName = "Wi-Fi";
 	
 	if(system(std::string(std::string("netsh interface set interface \"") + NAName + std::string("\" DISABLED")).c_str()) != 0)
 	{
-		return -8;
+		return -9;
 	}
 	
 	HKEY NICKey;
